@@ -65,7 +65,7 @@ pub const Tty = struct {
         const stdout = std.io.getStdOut();
 
         // Clear the screen
-        try stdout.writeAll(csi ++ "2J");
+        try stdout.writeAll(csi ++ "2J\n");
 
         // Write each row, separated with newlines
         for (0..buffer.Height) |row| {
