@@ -13,7 +13,7 @@ pub fn main() !void {
     try term.render(("meow,meow." ** (buffer.Width / 10)) ** (buffer.Height));
 
     while (true) {
-        const buf = term.blocking_input();
+        const buf = try term.blocking_input();
 
         // var buf2: buffer.Buffer = undefined;
         // for (0..(buffer.Width * buffer.Height)) |i| {
