@@ -2,9 +2,11 @@ const std = @import("std");
 const posix = std.posix;
 const buffer = @import("../buffer.zig");
 
+const Break = "\r\n";
+
 // Copy pasted from ziglibs/ansi-term
-const esc = "\x1B";
-const csi = esc ++ "[";
+const Esc = "\x1B";
+const Csi = Esc ++ "[";
 
 /// A platform that renders to a terminal. This assumes ANSI escape codes work
 /// for escaping and that termios actually works on this platform.
@@ -20,13 +22,26 @@ pub const Tty = struct {
         const previous_attributes = try posix.tcgetattr(fd);
         var attr = previous_attributes;
 
-        attr.iflag.IXON = false; // Disable flow control
+        // Raw mode, per the manpage
+        attr.iflag.IGNBRK = false;
+        attr.iflag.BRKINT = false;
+        attr.iflag.PARMRK = false;
+        attr.iflag.ISTRIP = false;
+        attr.iflag.INLCR = false;
+        attr.iflag.IGNCR = false;
+        attr.iflag.ICRNL = false;
+        attr.iflag.IXON = false;
 
-        attr.lflag.ECHO = false; // Disable input cahracters being echoed
-        attr.lflag.ICANON = false; // Disable canonical (line-buffered) mode
-        attr.lflag.ISIG = false; // Get raw input by disabling signals
+        attr.oflag.OPOST = false;
 
-        attr.cflag.CSIZE = .CS8; // Set the character mask to 8 bits
+        attr.lflag.ECHO = false;
+        attr.lflag.ECHONL = false;
+        attr.lflag.ICANON = false;
+        attr.lflag.ISIG = false;
+        attr.lflag.IEXTEN = false;
+        
+        attr.cflag.PARENB = false;
+        attr.cflag.CSIZE = .CS8;
 
         // Always block to read, with no timeout
         attr.cc[@intFromEnum(posix.V.TIME)] = 0;
@@ -65,7 +80,7 @@ pub const Tty = struct {
         const stdout = std.io.getStdOut();
 
         // Clear the screen
-        try stdout.writeAll(csi ++ "2J\n");
+        try stdout.writeAll(Csi ++ "2J" ++ Break);
 
         // Write each row, separated with newlines
         for (0..buffer.Height) |row| {
@@ -73,7 +88,7 @@ pub const Tty = struct {
             try stdout.writeAll(buf[start..start + buffer.Width]);
             
             if (row < buffer.Height - 1) {
-                try stdout.writeAll("\n");
+                try stdout.writeAll(Break);
             }
         }
     }
