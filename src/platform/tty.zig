@@ -93,14 +93,14 @@ pub const Tty = struct {
         }
     }
 
-    pub fn blocking_input(_: Tty) ![]u8 {
+    pub fn blocking_input(_: Tty) ![16]u8 {
         const stdin = std.io.getStdIn().reader();
         var buf: [16]u8 = undefined;
 
         // We assume only one keypress is read
-        const len = try stdin.read(&buf);
+        _ = try stdin.read(&buf);
 
-        return buf[0..len];
+        return buf;
     }
 
 };
