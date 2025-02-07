@@ -93,4 +93,13 @@ pub const Tty = struct {
         }
     }
 
+    pub fn blocking_input(_: Tty) ![]u8 {
+        const stdin = std.io.getStdIn().reader();
+       
+        var buf: [16]u8 = undefined;
+        const len = try stdin.read(&buf);
+
+        return buf[0..len];
+    }
+
 };
