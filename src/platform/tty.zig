@@ -60,7 +60,7 @@ pub const Tty = struct {
         };
 
         // Initial screen clear
-        try tty.render(" " ** (buffer.Width * buffer.Height));
+        try tty.render(&buffer.Buffer.fill(' '));
 
         return tty;
     }
@@ -85,7 +85,7 @@ pub const Tty = struct {
         // Write each row, separated with newlines
         for (0..buffer.Height) |row| {
             const start = row * buffer.Width;
-            try stdout.writeAll(buf[start..start + buffer.Width]);
+            try stdout.writeAll(buf.buf[start..start + buffer.Width]);
             
             if (row < buffer.Height - 1) {
                 try stdout.writeAll(Break);
