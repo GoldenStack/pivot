@@ -10,13 +10,13 @@ pub const Cell = enum {
     Player,
 };
 
-board: [Width][Height]Cell,
+board: [Width * Height]Cell,
 player_x: usize,
 player_y: usize,
 
 pub fn init() @This() {
     var board: @This() = .{
-        .board = [_][Height]Cell{[_]Cell{Cell.Air} ** Height} ** Width,
+        .board = [_]Cell{Cell.Air} ** (Width * Height),
         .player_x = 0,
         .player_y = 0,
     };
@@ -37,11 +37,11 @@ pub fn init() @This() {
 }
 
 pub fn get(self: *const @This(), x: usize, y: usize) Cell {
-    return self.board[x][y];
+    return self.board[x + Width * y];
 }
 
 pub fn set(self: *@This(), x: usize, y: usize, value: Cell) void {
-    self.board[x][y] = value;
+    self.board[x + Width * y] = value;
 }
 
 fn add_range(value: usize, add: isize, max: usize) usize {
