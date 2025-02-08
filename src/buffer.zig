@@ -6,7 +6,7 @@ pub const Buffer = struct {
 
     pub fn init() Buffer {
         return .{
-            .buf = [_]u8{0} ** (Width * Height),
+            .buf = [_]u8{' '} ** (Width * Height),
         };
     }
 
