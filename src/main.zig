@@ -18,10 +18,10 @@ pub fn main() !void {
         const slice = key.slice();
 
         switch (slice[0]) {
-            'w' => game.move_player(0, -1),
-            'a' => game.move_player(-1, 0),
-            's' => game.move_player(0, 1),
-            'd' => game.move_player(1, 0),
+            'w', 'k' => game.move_player(0, -1),
+            'a', 'h' => game.move_player(-1, 0),
+            's', 'j' => game.move_player(0, 1),
+            'd', 'l' => game.move_player(1, 0),
             else => {},
         }
 
