@@ -4,10 +4,21 @@ const Buffer = @import("Buffer.zig");
 pub const Width = Buffer.Width;
 pub const Height = Buffer.Height;
 
-pub const Cell = enum {
-    Air,
-    Wall,
-    Player,
+pub const CellTag = enum {
+    air,
+    wall,
+    player,
+};
+
+pub const Wall = enum {
+    side,
+    top,
+};
+
+pub const Cell = union(CellTag) {
+    air,
+    wall: Wall,
+    player,
 };
 
 board: [Width * Height]Cell,
@@ -16,24 +27,27 @@ player_y: usize,
 
 pub fn init() @This() {
     var board: @This() = .{
-        .board = [_]Cell{Cell.Air} ** (Width * Height),
+        .board = [_]Cell{Cell.air} ** (Width * Height),
         .player_x = 0,
         .player_y = 0,
     };
 
-    for (0..Width) |x| {
-        for (0..Height) |y| {
-            const cell = if (std.crypto.random.int(u2) == 0)
-                Cell.Wall
-            else
-                Cell.Air;
+    board.room(10, 10, 15, 6);
 
-            board.set(x, y, cell);
-        }
+    board.set(0, 0, Cell.player);
+    return board;
+}
+
+fn room(self: *@This(), x: usize, y: usize, width: usize, height: usize) void {
+    for (y..y+height+1) |ry| {
+        self.set(x, ry, Cell{ .wall = Wall.side });
+        self.set(x + width, ry, Cell{ .wall = Wall.side });
     }
 
-    board.set(0, 0, Cell.Player);
-    return board;
+    for (x..x+width+1) |rx| {
+        self.set(rx, y, Cell{ .wall = Wall.top });
+        self.set(rx, y + height, Cell{ .wall = Wall.top });
+    }
 }
 
 pub fn get(self: *const @This(), x: usize, y: usize) Cell {
@@ -53,10 +67,10 @@ pub fn move_player(self: *@This(), x: isize, y: isize) void {
     const new_x = add_range(self.player_x, x, Width - 1);
     const new_y = add_range(self.player_y, y, Height - 1);
     
-    if (self.get(new_x, new_y) != Cell.Air) return;
+    if (self.get(new_x, new_y) != Cell.air) return;
 
-    self.set(self.player_x, self.player_y, Cell.Air);
-    self.set(new_x, new_y, Cell.Player);
+    self.set(self.player_x, self.player_y, Cell.air);
+    self.set(new_x, new_y, Cell.player);
 
     self.player_x = new_x;
     self.player_y = new_y;
@@ -68,9 +82,12 @@ pub fn compose(self: *const @This()) Buffer {
     for (0..Width) |x| {
         for (0..Height) |y| {
             const value: u8 = switch (self.get(x, y)) {
-                .Air => ' ',
-                .Wall => '#',
-                .Player => 'X',
+                .air => ' ',
+                .wall => |value| switch (value) {
+                    .side => '|',
+                    .top => '-',
+                },
+                .player => 'X',
             };
 
             buf.set(y, x, value);
