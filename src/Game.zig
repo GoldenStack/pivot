@@ -79,20 +79,37 @@ pub fn move_player(self: *@This(), x: isize, y: isize) void {
 pub fn compose(self: *const @This()) Buffer {
     var buf = Buffer.init();
 
+    const light = self.trace_light(self.player_x, self.player_y);
+
     for (0..Width) |x| {
         for (0..Height) |y| {
-            const value: u8 = switch (self.get(x, y)) {
+            const value: u8 = if (light[x + y * Width]) switch (self.get(x, y)) {
                 .air => ' ',
                 .wall => |value| switch (value) {
                     .side => '|',
                     .top => '-',
                 },
                 .player => 'X',
-            };
+            } else ' ';
 
             buf.set(y, x, value);
         }
     }
 
     return buf;
+}
+
+pub fn trace_light(self: *const @This(), x: usize, y: usize) [Width * Height]bool {
+    var items = [_]bool{true} ** (Width * Height);
+
+    for (0..Width) |cx| {
+        for (0..Height) |cy| {
+            items[cx + cy * Width] = std.crypto.random.boolean();
+        }
+    }
+    _ = self;
+    _ = .{x, y};
+    items[0] = items[0];
+
+    return items;
 }
