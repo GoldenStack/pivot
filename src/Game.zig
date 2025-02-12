@@ -104,12 +104,14 @@ pub fn trace_light(self: *const @This(), x: usize, y: usize) [Width * Height]boo
 
     for (0..Width) |cx| {
         for (0..Height) |cy| {
-            items[cx + cy * Width] = std.crypto.random.boolean();
+            const distance = std.math.hypot(
+                @as(f32, @floatFromInt(x)) - @as(f32, @floatFromInt(cx)),
+                @as(f32, @floatFromInt(y)) - @as(f32, @floatFromInt(cy))
+            );
+            items[cx + cy * Width] = distance < 5;
         }
     }
     _ = self;
-    _ = .{x, y};
-    items[0] = items[0];
 
     return items;
 }
