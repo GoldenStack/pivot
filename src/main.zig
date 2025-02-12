@@ -17,18 +17,25 @@ pub fn main() !void {
         const key = try term.blocking_input();
         const slice = key.slice();
 
-        switch (slice[0]) {
-            'w', 'k' => game.move_player(0, -1),
+        if (slice.len == 1) switch (slice[0]) {
+            'w', 'k', => game.move_player(0, -1),
             'a', 'h' => game.move_player(-1, 0),
             's', 'j' => game.move_player(0, 1),
             'd', 'l' => game.move_player(1, 0),
+            13 => return,
             else => {},
-        }
+        };
+
+        const cc1 = slice.len == 3 and std.mem.eql(u8, slice[0..2], &[_]u8{27, 91});
+
+        if (cc1) switch (slice[slice.len-1]) {
+            65 => game.move_player(0, -1),
+            68 => game.move_player(-1, 0),
+            66 => game.move_player(0, 1),
+            67 => game.move_player(1, 0),
+            else => {},
+        };
 
         try term.render(&game.compose());
-
-        if (slice[0] == 13) {
-            return;
-        }
     }
 }
