@@ -22,7 +22,7 @@ pub fn main() !void {
             'a', 'h' => game.move_player(-1, 0),
             's', 'j' => game.move_player(0, 1),
             'd', 'l' => game.move_player(1, 0),
-            13 => return,
+            'q' => return,
             else => {},
         };
 
