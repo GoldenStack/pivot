@@ -156,11 +156,6 @@ pub fn fov_naive(self: *const @This(), x: usize, y: usize) [Width * Height]bool 
 
     for (0..Width) |cx| {
         nextcell: for (0..Height) |cy| {
-            if (cx == x and cy == y) {
-                items[x + y * Width] = 2;
-                continue;
-            }
-
             if (cx != x) for (@min(cx, x)+1..@max(cx, x)) |nx| {
                 const ny_f = line_x_to_y(x, y, cx, cy, @floatFromInt(nx));
                 const ny = @as(usize, @intFromFloat(@floor(ny_f)));
