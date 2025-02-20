@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const Buffer = @import("Buffer.zig");
 
 pub const Width = Buffer.Width;
@@ -33,6 +34,7 @@ pub fn init() @This() {
     };
 
     board.room(10, 10, 15, 6);
+    board.set(10, 11, Cell.air);
 
     board.set(board.player_x, board.player_y, Cell.player);
     return board;
@@ -120,8 +122,11 @@ pub fn fov_radius(self: *const @This(), x: usize, y: usize) [Width * Height]bool
 fn convert(items: [Width * Height]u2) [Width * Height]bool {
     var out = [_]bool{false} ** (Width * Height);
     for (0.., items) |index, value| {
-        if (value == 1) out[index] = false
-        else if (value == 2) out[index] = true;
+        if (builtin.mode == std.builtin.OptimizeMode.Debug and value == 0) {
+            std.debug.print("Failed to determine FOV status for index {any}\r\n", .{index});
+            @panic("Did not determine in-FOV status for entire screen!");
+        }
+        out[index] = value == 2;
     }
     return out;
 }
@@ -150,31 +155,35 @@ pub fn fov_naive(self: *const @This(), x: usize, y: usize) [Width * Height]bool 
     var items = [_]u2{0} ** (Width * Height);
 
     for (0..Width) |cx| {
-        for (0..Height) |cy| {
-            if (cx == x and cy == y) continue;
+        nextcell: for (0..Height) |cy| {
+            if (cx == x and cy == y) {
+                items[x + y * Width] = 2;
+                continue;
+            }
 
             if (cx != x) for (@min(cx, x)+1..@max(cx, x)) |nx| {
                 const ny_f = line_x_to_y(x, y, cx, cy, @floatFromInt(nx));
                 const ny = @as(usize, @intFromFloat(@floor(ny_f)));
 
-                items[nx + ny * Width] = 2;
-                if (nx - 1 != @min(cx, x))
-                items[(nx - 1) + ny * Width] = 2;
+                if (self.get(nx, ny) != Cell.air or (nx - 1 != @min(cx, x) and self.get(nx - 1, ny) != Cell.air)) {
+                    items[cx + cy * Width] = 1;
+                    continue :nextcell;
+                }
             };
 
             if (cy != y) for (@min(cy, y)+1..@max(cy, y)) |ny| {
                 const nx_f = line_y_to_x(x, y, cx, cy, @floatFromInt(ny));
                 const nx = @as(usize, @intFromFloat(@floor(nx_f)));
 
-                items[nx + ny * Width] = 2;
-                if (ny - 1 != @min(cy, y))
-                items[nx + (ny - 1) * Width] = 2;
+                if (self.get(nx, ny) != Cell.air or (ny - 1 != @min(cy, y) and self.get(nx, ny - 1) != Cell.air)) {
+                    items[cx + cy * Width] = 1;
+                    continue :nextcell;
+                }
             };
 
-            if (true) return convert(items);
+            items[cx + cy * Width] = 2;
         }
     }
-    _ = self;
 
     return convert(items);
 }
