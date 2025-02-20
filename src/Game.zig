@@ -28,13 +28,13 @@ player_y: usize,
 pub fn init() @This() {
     var board: @This() = .{
         .board = [_]Cell{Cell.air} ** (Width * Height),
-        .player_x = 0,
-        .player_y = 0,
+        .player_x = 40,
+        .player_y = 12,
     };
 
     board.room(10, 10, 15, 6);
 
-    board.set(0, 0, Cell.player);
+    board.set(board.player_x, board.player_y, Cell.player);
     return board;
 }
 
@@ -59,14 +59,13 @@ pub fn set(self: *@This(), x: usize, y: usize, value: Cell) void {
 }
 
 fn add_range(value: usize, add: isize, max: usize) usize {
-    if (add < 0) return value -| @as(usize, @intCast(-add))
-    else return @min(max, value +| @as(usize, @intCast(add)));
+    if (add < 0) return value -| @as(usize, @intCast(-add)) else return @min(max, value +| @as(usize, @intCast(add)));
 }
 
 pub fn move_player(self: *@This(), x: isize, y: isize) void {
     const new_x = add_range(self.player_x, x, Width - 1);
     const new_y = add_range(self.player_y, y, Height - 1);
-    
+
     if (self.get(new_x, new_y) != Cell.air) return;
 
     self.set(self.player_x, self.player_y, Cell.air);
@@ -79,7 +78,7 @@ pub fn move_player(self: *@This(), x: isize, y: isize) void {
 pub fn compose(self: *const @This()) Buffer {
     var buf = Buffer.init();
 
-    const light = self.trace_light(self.player_x, self.player_y);
+    const light = self.fov_naive(self.player_x, self.player_y);
 
     for (0..Width) |x| {
         for (0..Height) |y| {
@@ -99,7 +98,9 @@ pub fn compose(self: *const @This()) Buffer {
     return buf;
 }
 
-pub fn trace_light(self: *const @This(), x: usize, y: usize) [Width * Height]bool {
+/// A field of view algorithm that considers all tiles within a certain radius
+/// as "in view".
+pub fn fov_radius(self: *const @This(), x: usize, y: usize) [Width * Height]bool {
     var items = [_]bool{true} ** (Width * Height);
 
     for (0..Width) |cx| {
@@ -114,4 +115,66 @@ pub fn trace_light(self: *const @This(), x: usize, y: usize) [Width * Height]boo
     _ = self;
 
     return items;
+}
+
+fn convert(items: [Width * Height]u2) [Width * Height]bool {
+    var out = [_]bool{false} ** (Width * Height);
+    for (0.., items) |index, value| {
+        if (value == 1) out[index] = false
+        else if (value == 2) out[index] = true;
+    }
+    return out;
+}
+
+fn line_y_to_x(ox: usize, oy: usize, px: usize, py: usize, y: f64) f64 {
+    const ox_f = @as(f64, @floatFromInt(ox)) + 0.5;
+    const oy_f = @as(f64, @floatFromInt(oy)) + 0.5;
+
+    const px_f = @as(f64, @floatFromInt(px)) + 0.5;
+    const py_f = @as(f64, @floatFromInt(py)) + 0.5;
+
+    const slope = (px_f - ox_f) / (py_f - oy_f);
+
+    return ox_f + (y - oy_f) * slope;
+}
+
+fn line_x_to_y(ox: usize, oy: usize, px: usize, py: usize, x: f64) f64 {
+    // Simply flip coordinates
+    return line_y_to_x(oy, ox, py, px, x);
+}
+
+pub fn fov_naive(self: *const @This(), x: usize, y: usize) [Width * Height]bool {
+    // 0 = unchecked
+    // 1 = not in FOV
+    // 2 = in FOV
+    var items = [_]u2{0} ** (Width * Height);
+
+    for (0..Width) |cx| {
+        for (0..Height) |cy| {
+            if (cx == x and cy == y) continue;
+
+            if (cx != x) for (@min(cx, x)+1..@max(cx, x)) |nx| {
+                const ny_f = line_x_to_y(x, y, cx, cy, @floatFromInt(nx));
+                const ny = @as(usize, @intFromFloat(@floor(ny_f)));
+
+                items[nx + ny * Width] = 2;
+                if (nx - 1 != @min(cx, x))
+                items[(nx - 1) + ny * Width] = 2;
+            };
+
+            if (cy != y) for (@min(cy, y)+1..@max(cy, y)) |ny| {
+                const nx_f = line_y_to_x(x, y, cx, cy, @floatFromInt(ny));
+                const nx = @as(usize, @intFromFloat(@floor(nx_f)));
+
+                items[nx + ny * Width] = 2;
+                if (ny - 1 != @min(cy, y))
+                items[nx + (ny - 1) * Width] = 2;
+            };
+
+            if (true) return convert(items);
+        }
+    }
+    _ = self;
+
+    return convert(items);
 }
