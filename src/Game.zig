@@ -131,6 +131,87 @@ fn convert(items: [Width * Height]u2) [Width * Height]bool {
     return out;
 }
 
+const LineIterator = struct {
+    start_x: usize,
+    start_y: usize,
+    end_x: usize,
+    end_y: usize,
+
+    x_index: usize,
+    y_index: usize,
+    x_index_start: usize,
+    x_index_end: usize,
+    y_index_start: usize,
+    y_index_end: usize,
+
+    x_step_sign: u1, // 1 = positive, 0 = negative
+    y_step_sign: u1, // 1 = positive, 0 = negative
+
+    next_cell: ?struct { usize, usize },
+
+    fn init(start_x: usize, start_y: usize, end_x: usize, end_y: usize) LineIterator {
+        var iter: LineIterator = .{
+            .start_x = start_x,
+            .start_y = start_y,
+            .end_x = end_x,
+            .end_y = end_y,
+
+            .x_index_start = start_x,
+            .y_index_start = start_y,
+            .x_index_end = end_x,
+            .y_index_end = end_y,
+
+            .x_index = start_x,
+            .y_index = start_y,
+            .x_step_sign = if (end_x < start_x) 0 else 1,
+            .y_step_sign = if (end_y < start_y) 0 else 1,
+
+            .next_cell = null,
+        };
+
+        // Ignore the lowest value. This is done because we are technically
+        // considering cells from their centers but the coordinates refer to
+        // their top left corner. This means that we have to exclude the cells
+        // that have their top lefts not in the line we're casting. Since the
+        // largest X and Y values are supposed to be considered in the line, we
+        // include them, so we solely care about the smallest x and y values.
+        (if (iter.x_step_sign == 1) iter.x_index_start else iter.x_index_end) += 1;
+        (if (iter.y_step_sign == 1) iter.y_index_start else iter.y_index_end) += 1;
+
+        return iter;
+    }
+
+    fn next(self: *LineIterator) ?struct { usize, usize } {
+        if (self.next_cell != null) {
+            const cell = self.next_cell;
+            self.next_cell = null;
+            return cell;
+        }
+
+        if (self.x_index != self.x_index_end) {
+            const y_f = line_x_to_y(self.start_x, self.start_y, self.end_x, self.end_y, @floatFromInt(self.x_index));
+            const y = @as(usize, @intFromFloat(@floor(y_f)));
+
+            self.next_cell = .{ self.x_index, y };
+            const next_cell = .{ self.x_index - 1, y };
+            if (self.x_step_sign == 1) self.x_index += 1 else self.x_index -= 1;
+            return next_cell;
+        }
+
+        if (self.y_index != self.y_index_end) {
+            const x_f = line_y_to_x(self.start_x, self.start_y, self.end_x, self.end_y, @floatFromInt(self.y_index));
+            const x = @as(usize, @intFromFloat(@floor(x_f)));
+
+            self.next_cell = .{ x, self.y_index };
+            const next_cell = .{ x, self.y_index - 1 };
+            if (self.y_step_sign == 1) self.y_index += 1 else self.y_index -= 1;
+            return next_cell;
+        }
+
+        return null;
+    }
+};
+
 fn line_y_to_x(ox: usize, oy: usize, px: usize, py: usize, y: f64) f64 {
     const ox_f = @as(f64, @floatFromInt(ox)) + 0.5;
     const oy_f = @as(f64, @floatFromInt(oy)) + 0.5;
@@ -153,6 +234,18 @@ pub fn fov_naive(self: *const @This(), x: usize, y: usize) [Width * Height]bool 
     // 1 = not in FOV
     // 2 = in FOV
     var items = [_]u2{0} ** (Width * Height);
+    items[x + y * Width] = 2;
+
+    var iter = LineIterator.init(x, y, 10, 14);
+    while (iter.next()) |item| {
+        if (item[0] == x and item[1] == y) continue;
+        if (item[0] == 10 and item[1] == 14) continue;
+
+        std.debug.print("{any}, {any}\r\n", item);
+        items[item[0] + item[1] * Width] = 2;
+    }
+
+    if (true) return convert(items);
 
     for (0..Width) |cx| {
         nextcell: for (0..Height) |cy| {
