@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const Buffer = @import("Buffer.zig");
+const Line = @import("Line.zig");
 
 pub const Width = Buffer.Width;
 pub const Height = Buffer.Height;
@@ -21,8 +22,6 @@ pub const Cell = union(CellTag) {
     wall: Wall,
     player,
 };
-
-pub const Point = struct { usize, usize };
 
 board: [Width * Height]Cell,
 player_x: usize,
@@ -114,153 +113,6 @@ fn convert(items: [Width * Height]u2) [Width * Height]bool {
     return out;
 }
 
-pub const CollisionTag = enum { edge, vertex };
-
-pub const Collision = union(CollisionTag) {
-    edge: [2]Point,
-    vertex: struct {
-        all_of: [2]Point,
-        any_of: [2]Point,
-    },
-};
-
-const LineIterator = struct {
-    start_x: usize,
-    start_y: usize,
-    end_x: usize,
-    end_y: usize,
-
-    x_index: usize,
-    y_index: usize,
-
-    x_index_start: usize,
-    x_index_end: usize,
-    y_index_start: usize,
-    y_index_end: usize,
-
-    slope: f64,
-
-    fn init(start_x: usize, start_y: usize, end_x: usize, end_y: usize) LineIterator {
-        var iter: LineIterator = .{
-            .start_x = start_x,
-            .start_y = start_y,
-            .end_x = end_x,
-            .end_y = end_y,
-
-            .x_index_start = @min(start_x, end_x),
-            .y_index_start = @min(start_y, end_y),
-            .x_index_end = @max(start_x, end_x),
-            .y_index_end = @max(start_y, end_y),
-
-            .x_index = start_x,
-            .y_index = start_y,
-
-            .slope = slope: {
-                const ox_f = @as(f64, @floatFromInt(start_x)) + 0.5;
-                const oy_f = @as(f64, @floatFromInt(start_y)) + 0.5;
-
-                const px_f = @as(f64, @floatFromInt(end_x)) + 0.5;
-                const py_f = @as(f64, @floatFromInt(end_y)) + 0.5;
-
-                break :slope (px_f - ox_f) / (py_f - oy_f);
-            },
-        };
-
-        // Ignore the lowest value. This is done because we are technically
-        // considering cells from their centers but the coordinates refer to
-        // their top left corner. This means that we have to exclude the cells
-        // that have their top lefts not in the line we're casting. Since the
-        // largest X and Y values are supposed to be considered in the line, we
-        // include them, so we solely care about the smallest x and y values.
-        iter.x_index_start += 1;
-        iter.y_index_start += 1;
-
-        iter.x_index = iter.x_index_start;
-        iter.y_index = iter.y_index_start;
-
-        return iter;
-    }
-
-    fn next(self: *LineIterator) ?Collision {
-        if (self.x_index <= self.x_index_end) {
-            const y_f = line_x_to_y(self.start_x, self.start_y, self.end_x, self.end_y, @as(f64, @floatFromInt(self.x_index)));
-            const x = self.x_index;
-            const y = @as(usize, @intFromFloat(@floor(y_f)));
-
-            self.x_index += 1;
-
-            if (@round(y_f) == y_f) {
-                return corners(x, y, self.slope);
-            } else {
-                return Collision{ .edge = [_]Point{
-                    .{ x, y },
-                    .{ x - 1, y },
-                } };
-            }
-        }
-
-        if (self.y_index <= self.y_index_end) {
-            const x_f = line_y_to_x(self.start_x, self.start_y, self.end_x, self.end_y, @floatFromInt(self.y_index));
-            const x = @as(usize, @intFromFloat(@floor(x_f)));
-            const y = self.y_index;
-
-            self.y_index += 1;
-
-            if (@round(x_f) == x_f) {
-                return corners(x, y, self.slope);
-            } else {
-                return Collision{ .edge = [_]Point{
-                    .{ x, y },
-                    .{ x, y - 1 },
-                } };
-            }
-        }
-
-        return null;
-    }
-};
-
-fn corners(x: usize, y: usize, slope: f64) Collision {
-    const corners_pos = [_]Point{
-        .{ x - 1, y },
-        .{ x, y - 1 },
-    };
-
-    const corners_neg = [_]Point{
-        .{ x - 1, y - 1 },
-        .{ x, y },
-    };
-
-    if (slope > 0) {
-        return Collision{ .vertex = .{
-            .all_of = corners_neg,
-            .any_of = corners_pos,
-        } };
-    } else {
-        return Collision{ .vertex = .{
-            .all_of = corners_pos,
-            .any_of = corners_neg,
-        } };
-    }
-}
-
-fn line_y_to_x(ox: usize, oy: usize, px: usize, py: usize, y: f64) f64 {
-    const ox_f = @as(f64, @floatFromInt(ox)) + 0.5;
-    const oy_f = @as(f64, @floatFromInt(oy)) + 0.5;
-
-    const px_f = @as(f64, @floatFromInt(px)) + 0.5;
-    const py_f = @as(f64, @floatFromInt(py)) + 0.5;
-
-    const slope = (px_f - ox_f) / (py_f - oy_f);
-
-    return ox_f + (y - oy_f) * slope;
-}
-
-fn line_x_to_y(ox: usize, oy: usize, px: usize, py: usize, x: f64) f64 {
-    // Simply flip coordinates
-    return line_y_to_x(oy, ox, py, px, x);
-}
-
 pub fn fov_naive(self: *const @This(), x: usize, y: usize) [Width * Height]bool {
     // 0 = unchecked
     // 1 = not in FOV
@@ -269,7 +121,7 @@ pub fn fov_naive(self: *const @This(), x: usize, y: usize) [Width * Height]bool 
     items[x + y * Width] = 2;
     items[10 + 14 * Width] = 2;
 
-    var iter = LineIterator.init(x, y, 10, 14);
+    var iter = Line.Iterator.init(x, y, 10, 14);
     while (iter.next()) |item| {
         switch (item) {
             .edge => |edge| {
@@ -287,34 +139,7 @@ pub fn fov_naive(self: *const @This(), x: usize, y: usize) [Width * Height]bool 
             },
         }
     }
-
-    if (true) return convert(items);
-
-    for (0..Width) |cx| {
-        nextcell: for (0..Height) |cy| {
-            if (cx != x) for (@min(cx, x)+1..@max(cx, x)) |nx| {
-                const ny_f = line_x_to_y(x, y, cx, cy, @floatFromInt(nx));
-                const ny = @as(usize, @intFromFloat(@floor(ny_f)));
-
-                if (self.get(nx, ny) != Cell.air or (nx - 1 != @min(cx, x) and self.get(nx - 1, ny) != Cell.air)) {
-                    items[cx + cy * Width] = 1;
-                    continue :nextcell;
-                }
-            };
-
-            if (cy != y) for (@min(cy, y)+1..@max(cy, y)) |ny| {
-                const nx_f = line_y_to_x(x, y, cx, cy, @floatFromInt(ny));
-                const nx = @as(usize, @intFromFloat(@floor(nx_f)));
-
-                if (self.get(nx, ny) != Cell.air or (ny - 1 != @min(cy, y) and self.get(nx, ny - 1) != Cell.air)) {
-                    items[cx + cy * Width] = 1;
-                    continue :nextcell;
-                }
-            };
-
-            items[cx + cy * Width] = 2;
-        }
-    }
+    _ = self;
 
     return convert(items);
 }
