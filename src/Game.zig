@@ -35,7 +35,7 @@ pub fn init() @This() {
     };
 
     board.room(10, 10, 15, 6);
-    // board.set(10, 11, Cell.air);
+    board.set(10, 11, Cell.air);
 
     board.set(board.player_x, board.player_y, Cell.player);
     return board;
@@ -119,27 +119,55 @@ pub fn fov_naive(self: *const @This(), x: usize, y: usize) [Width * Height]bool 
     // 2 = in FOV
     var items = [_]u2{0} ** (Width * Height);
     items[x + y * Width] = 2;
-    items[10 + 14 * Width] = 2;
 
-    var iter = Line.Iterator.init(x, y, 10, 14);
-    while (iter.next()) |item| {
-        switch (item) {
-            .edge => |edge| {
-                for (edge) |edge3| {
-                    items[edge3[0] + edge3[1] * Width] = 2;
+    for (0..Width) |cx| {
+        nextcell: for (0..Height) |cy| {
+            if (cx == x and cy == y) continue;
+            var iter = Line.Iterator.init(x, y, cx, cy);
+
+            while (iter.next()) |item| {
+                switch (item) {
+                    .edge => |edge| {
+                        for (edge) |edge3| {
+                            if (edge3[0] == cx and edge3[1] == cy) continue;
+                            if (edge3[0] == x and edge3[1] == y) continue;
+
+                            if (self.get(edge3[0], edge3[1]) != Cell.air) {
+                                items[cx + cy * Width] = 1;
+                                continue :nextcell;
+                            }
+                        }
+                    },
+                    .vertex => |vertex| {
+                        for (vertex.all_of) |edge3| {
+                            if (edge3[0] == cx and edge3[1] == cy) continue;
+                            if (edge3[0] == x and edge3[1] == y) continue;
+
+                            if (self.get(edge3[0], edge3[1]) != Cell.air) {
+                                items[cx + cy * Width] = 1;
+                                continue :nextcell;
+                            }
+                        }
+                        block: {
+                            for (vertex.any_of) |edge3| {
+                                if (edge3[0] == cx and edge3[1] == cy) continue;
+                                if (edge3[0] == x and edge3[1] == y) continue;
+
+                                if (self.get(edge3[0], edge3[1]) == Cell.air) {
+                                    break :block;
+                                }
+                            }
+
+                            items[cx + cy * Width] = 1;
+                            continue :nextcell;
+                        }
+                    },
                 }
-            },
-            .vertex => |vertex| {
-                for (vertex.all_of) |edge3| {
-                    items[edge3[0] + edge3[1] * Width] = 2;
-                }
-                for (vertex.any_of) |edge3| {
-                    items[edge3[0] + edge3[1] * Width] = 2;
-                }
-            },
+            }
+
+            items[cx + cy * Width] = 2;
         }
     }
-    _ = self;
 
     return convert(items);
 }
