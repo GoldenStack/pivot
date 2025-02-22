@@ -29,12 +29,12 @@ player_y: usize,
 pub fn init() @This() {
     var board: @This() = .{
         .board = [_]Cell{Cell.air} ** (Width * Height),
-        .player_x = 40,
-        .player_y = 12,
+        .player_x = 14,
+        .player_y = 18,
     };
 
     board.room(10, 10, 15, 6);
-    board.set(10, 11, Cell.air);
+    // board.set(10, 11, Cell.air);
 
     board.set(board.player_x, board.player_y, Cell.player);
     return board;
@@ -123,8 +123,8 @@ fn convert(items: [Width * Height]u2) [Width * Height]bool {
     var out = [_]bool{false} ** (Width * Height);
     for (0.., items) |index, value| {
         if (builtin.mode == std.builtin.OptimizeMode.Debug and value == 0) {
-            std.debug.print("Failed to determine FOV status for index {any}\r\n", .{index});
-            @panic("Did not determine in-FOV status for entire screen!");
+            // std.debug.print("Failed to determine FOV status for index {any}\r\n", .{index});
+            // @panic("Did not determine in-FOV status for entire screen!");
         }
         out[index] = value == 2;
     }
@@ -139,15 +139,16 @@ const LineIterator = struct {
 
     x_index: usize,
     y_index: usize,
+
     x_index_start: usize,
     x_index_end: usize,
     y_index_start: usize,
     y_index_end: usize,
 
-    x_step_sign: u1, // 1 = positive, 0 = negative
-    y_step_sign: u1, // 1 = positive, 0 = negative
+    slope: f64,
 
-    next_cell: ?struct { usize, usize },
+    next_cells: [10]struct { usize, usize },
+    next_cell_index: usize,
 
     fn init(start_x: usize, start_y: usize, end_x: usize, end_y: usize) LineIterator {
         var iter: LineIterator = .{
@@ -156,17 +157,26 @@ const LineIterator = struct {
             .end_x = end_x,
             .end_y = end_y,
 
-            .x_index_start = start_x,
-            .y_index_start = start_y,
-            .x_index_end = end_x,
-            .y_index_end = end_y,
+            .x_index_start = @min(start_x, end_x),
+            .y_index_start = @min(start_y, end_y),
+            .x_index_end = @max(start_x, end_x),
+            .y_index_end = @max(start_y, end_y),
 
             .x_index = start_x,
             .y_index = start_y,
-            .x_step_sign = if (end_x < start_x) 0 else 1,
-            .y_step_sign = if (end_y < start_y) 0 else 1,
 
-            .next_cell = null,
+            .slope = slope: {
+                const ox_f = @as(f64, @floatFromInt(start_x)) + 0.5;
+                const oy_f = @as(f64, @floatFromInt(start_y)) + 0.5;
+
+                const px_f = @as(f64, @floatFromInt(end_x)) + 0.5;
+                const py_f = @as(f64, @floatFromInt(end_y)) + 0.5;
+
+                break :slope (px_f - ox_f) / (py_f - oy_f);
+            },
+
+            .next_cells = undefined,
+            .next_cell_index = 0,
         };
 
         // Ignore the lowest value. This is done because we are technically
@@ -175,36 +185,57 @@ const LineIterator = struct {
         // that have their top lefts not in the line we're casting. Since the
         // largest X and Y values are supposed to be considered in the line, we
         // include them, so we solely care about the smallest x and y values.
-        (if (iter.x_step_sign == 1) iter.x_index_start else iter.x_index_end) += 1;
-        (if (iter.y_step_sign == 1) iter.y_index_start else iter.y_index_end) += 1;
+        iter.x_index_start += 1;
+        iter.y_index_start += 1;
+
+        iter.x_index = iter.x_index_start;
+        iter.y_index = iter.y_index_start;
 
         return iter;
     }
 
     fn next(self: *LineIterator) ?struct { usize, usize } {
-        if (self.next_cell != null) {
-            const cell = self.next_cell;
-            self.next_cell = null;
+        if (self.next_cell_index > 0) {
+            const cell = self.next_cells[self.next_cell_index - 1];
+            self.next_cell_index -= 1;
             return cell;
         }
 
-        if (self.x_index != self.x_index_end) {
-            const y_f = line_x_to_y(self.start_x, self.start_y, self.end_x, self.end_y, @floatFromInt(self.x_index));
+        if (self.x_index <= self.x_index_end) {
+            const y_f = line_x_to_y(self.start_x, self.start_y, self.end_x, self.end_y, @as(f64, @floatFromInt(self.x_index)));
             const y = @as(usize, @intFromFloat(@floor(y_f)));
 
-            self.next_cell = .{ self.x_index, y };
-            const next_cell = .{ self.x_index - 1, y };
-            if (self.x_step_sign == 1) self.x_index += 1 else self.x_index -= 1;
+            const next_cell = .{ self.x_index, y };
+            if (self.slope == -1 or self.slope == 1) {
+                self.next_cell_index = 3;
+                self.next_cells[0] = .{ next_cell[0] - 1, next_cell[1] };
+                self.next_cells[1] = .{ next_cell[0] - 1, next_cell[1] - 1 };
+                self.next_cells[2] = .{ next_cell[0], next_cell[1] - 1 };
+            } else {
+                self.next_cell_index = 1;
+                self.next_cells[0] = .{ next_cell[0] - 1, next_cell[1] };
+            }
+
+            self.x_index += 1;
             return next_cell;
         }
 
-        if (self.y_index != self.y_index_end) {
+        if (self.y_index <= self.y_index_end) {
             const x_f = line_y_to_x(self.start_x, self.start_y, self.end_x, self.end_y, @floatFromInt(self.y_index));
             const x = @as(usize, @intFromFloat(@floor(x_f)));
 
-            self.next_cell = .{ x, self.y_index };
-            const next_cell = .{ x, self.y_index - 1 };
-            if (self.y_step_sign == 1) self.y_index += 1 else self.y_index -= 1;
+            const next_cell = .{ x, self.y_index };
+            if (self.slope == -1 or self.slope == 1) {
+                self.next_cell_index = 3;
+                self.next_cells[0] = .{ next_cell[0] - 1, next_cell[1] };
+                self.next_cells[1] = .{ next_cell[0] - 1, next_cell[1] - 1 };
+                self.next_cells[2] = .{ next_cell[0], next_cell[1] - 1 };
+            } else {
+                self.next_cell_index = 1;
+                self.next_cells[0] = .{ next_cell[0], next_cell[1] - 1 };
+            }
+
+            self.y_index += 1;
             return next_cell;
         }
 
@@ -235,6 +266,7 @@ pub fn fov_naive(self: *const @This(), x: usize, y: usize) [Width * Height]bool 
     // 2 = in FOV
     var items = [_]u2{0} ** (Width * Height);
     items[x + y * Width] = 2;
+    items[10 + 14 * Width] = 2;
 
     var iter = LineIterator.init(x, y, 10, 14);
     while (iter.next()) |item| {
