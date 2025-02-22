@@ -81,7 +81,10 @@ pub fn move_player(self: *@This(), x: isize, y: isize) void {
 pub fn compose(self: *const @This()) Buffer {
     var buf = Buffer.init();
 
+    const start = std.time.nanoTimestamp();
     const light = self.fov_naive(self.player_x, self.player_y);
+    const duration = std.time.nanoTimestamp() - start;
+    std.debug.print("{d:.3}ms\r\n", .{(@as(f64, @floatFromInt(duration))) / 1e6});
 
     for (0..Width) |x| {
         for (0..Height) |y| {
