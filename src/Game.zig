@@ -105,8 +105,8 @@ fn convert(items: [Width * Height]u2) [Width * Height]bool {
     var out = [_]bool{false} ** (Width * Height);
     for (0.., items) |index, value| {
         if (builtin.mode == std.builtin.OptimizeMode.Debug and value == 0) {
-            // std.debug.print("Failed to determine FOV status for index {any}\r\n", .{index});
-            // @panic("Did not determine in-FOV status for entire screen!");
+            std.debug.print("Failed to determine FOV status for index {any}\r\n", .{index});
+            @panic("Did not determine in-FOV status for entire screen!");
         }
         out[index] = value == 2;
     }
