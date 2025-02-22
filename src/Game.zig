@@ -182,57 +182,64 @@ const LineIterator = struct {
     }
 
     fn next(self: *LineIterator) ?Collision {
-        if (self.x_index <= self.x_index_end and false) {
+        if (self.x_index <= self.x_index_end) {
             const y_f = line_x_to_y(self.start_x, self.start_y, self.end_x, self.end_y, @as(f64, @floatFromInt(self.x_index)));
             const x = self.x_index;
+            const y = @as(usize, @intFromFloat(@floor(y_f)));
 
             self.x_index += 1;
 
-            return collision(x, y_f, self.slope);
+            if (@round(y_f) == y_f) {
+                return corners(x, y, self.slope);
+            } else {
+                return Collision{ .edge = [_]Point{
+                    .{ x, y },
+                    .{ x - 1, y },
+                } };
+            }
         }
 
         if (self.y_index <= self.y_index_end) {
             const x_f = line_y_to_x(self.start_x, self.start_y, self.end_x, self.end_y, @floatFromInt(self.y_index));
+            const x = @as(usize, @intFromFloat(@floor(x_f)));
             const y = self.y_index;
 
             self.y_index += 1;
 
-            return collision(y, x_f, self.slope);
+            if (@round(x_f) == x_f) {
+                return corners(x, y, self.slope);
+            } else {
+                return Collision{ .edge = [_]Point{
+                    .{ x, y },
+                    .{ x, y - 1 },
+                } };
+            }
         }
 
         return null;
     }
 };
 
+fn corners(x: usize, y: usize, slope: f64) Collision {
+    const corners_pos = [_]Point{
+        .{ x - 1, y },
+        .{ x, y - 1 },
+    };
 
-fn collision(x: usize, y_f: f64, slope: f64) Collision {
-    const y = @as(usize, @intFromFloat(@floor(y_f)));
+    const corners_neg = [_]Point{
+        .{ x - 1, y - 1 },
+        .{ x, y },
+    };
 
-    if (@round(y_f) == y_f) {
-        const corners_pos = [_]Point{
-            .{ x - 1, y },
-            .{ x, y - 1 },
-        };
-
-        const corners_neg = [_]Point{
-            .{ x - 1, y - 1 },
-            .{ x, y },
-        };
-
-        if (slope > 0) {
-            return Collision{ .vertex = .{
-                .all_of = corners_neg,
-                .any_of = corners_pos,
-            } };
-        } else {
-            return Collision{ .vertex = .{
-                .all_of = corners_pos,
-                .any_of = corners_neg,
-            } };
-        }
+    if (slope > 0) {
+        return Collision{ .vertex = .{
+            .all_of = corners_neg,
+            .any_of = corners_pos,
+        } };
     } else {
-        return Collision{ .edge = [_]Point{
-            .{ x, y - 1 }
+        return Collision{ .vertex = .{
+            .all_of = corners_pos,
+            .any_of = corners_neg,
         } };
     }
 }
