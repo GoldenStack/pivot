@@ -102,25 +102,6 @@ pub fn compose(self: *const @This()) Buffer {
     return buf;
 }
 
-/// A field of view algorithm that considers all tiles within a certain radius
-/// as "in view".
-pub fn fov_radius(self: *const @This(), x: usize, y: usize) [Width * Height]bool {
-    var items = [_]bool{true} ** (Width * Height);
-
-    for (0..Width) |cx| {
-        for (0..Height) |cy| {
-            const distance = std.math.hypot(
-                @as(f32, @floatFromInt(x)) - @as(f32, @floatFromInt(cx)),
-                @as(f32, @floatFromInt(y)) - @as(f32, @floatFromInt(cy))
-            );
-            items[cx + cy * Width] = distance < 5;
-        }
-    }
-    _ = self;
-
-    return items;
-}
-
 fn convert(items: [Width * Height]u2) [Width * Height]bool {
     var out = [_]bool{false} ** (Width * Height);
     for (0.., items) |index, value| {
