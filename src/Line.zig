@@ -12,10 +12,10 @@ pub const Collision = union(CollisionTag) {
 };
 
 pub const Iterator = struct {
-    start_x: usize,
-    start_y: usize,
-    end_x: usize,
-    end_y: usize,
+    start_x: f64,
+    start_y: f64,
+    end_x: f64,
+    end_y: f64,
 
     x_index: usize,
     y_index: usize,
@@ -27,45 +27,29 @@ pub const Iterator = struct {
 
     slope: f64,
 
-    pub fn init(start_x: usize, start_y: usize, end_x: usize, end_y: usize) Iterator {
-        var iter: Iterator = .{
+    pub fn init(start_x: f64, start_y: f64, end_x: f64, end_y: f64) Iterator {
+        const x_index_start: usize = @intFromFloat(@ceil(@min(start_x, end_x)));
+        const y_index_start: usize = @intFromFloat(@ceil(@min(start_y, end_y)));
+
+        const x_index_end: usize = @intFromFloat(@floor(@max(start_x, end_x)));
+        const y_index_end: usize = @intFromFloat(@floor(@max(start_y, end_y)));
+
+        return .{
             .start_x = start_x,
             .start_y = start_y,
             .end_x = end_x,
             .end_y = end_y,
 
-            .x_index_start = @min(start_x, end_x),
-            .y_index_start = @min(start_y, end_y),
-            .x_index_end = @max(start_x, end_x),
-            .y_index_end = @max(start_y, end_y),
+            .x_index_start = x_index_start,
+            .y_index_start = y_index_start,
+            .x_index_end = x_index_end,
+            .y_index_end = y_index_end,
 
-            .x_index = start_x,
-            .y_index = start_y,
+            .x_index = x_index_start,
+            .y_index = y_index_start,
 
-            .slope = slope: {
-                const ox_f = @as(f64, @floatFromInt(start_x)) + 0.5;
-                const oy_f = @as(f64, @floatFromInt(start_y)) + 0.5;
-
-                const px_f = @as(f64, @floatFromInt(end_x)) + 0.5;
-                const py_f = @as(f64, @floatFromInt(end_y)) + 0.5;
-
-                break :slope (px_f - ox_f) / (py_f - oy_f);
-            },
+            .slope = (end_x - start_x) / (end_y - start_y),
         };
-
-        // Ignore the lowest value. This is done because we are technically
-        // considering cells from their centers but the coordinates refer to
-        // their top left corner. This means that we have to exclude the cells
-        // that have their top lefts not in the line we're casting. Since the
-        // largest X and Y values are supposed to be considered in the line, we
-        // include them, so we solely care about the smallest x and y values.
-        iter.x_index_start += 1;
-        iter.y_index_start += 1;
-
-        iter.x_index = iter.x_index_start;
-        iter.y_index = iter.y_index_start;
-
-        return iter;
     }
 
     pub fn next(self: *Iterator) ?Collision {
@@ -131,19 +115,13 @@ fn corners(x: usize, y: usize, slope: f64) Collision {
     }
 }
 
-fn line_y_to_x(ox: usize, oy: usize, px: usize, py: usize, y: f64) f64 {
-    const ox_f = @as(f64, @floatFromInt(ox)) + 0.5;
-    const oy_f = @as(f64, @floatFromInt(oy)) + 0.5;
+fn line_y_to_x(ox: f64, oy: f64, px: f64, py: f64, y: f64) f64 {
+    const slope = (px - ox) / (py - oy);
 
-    const px_f = @as(f64, @floatFromInt(px)) + 0.5;
-    const py_f = @as(f64, @floatFromInt(py)) + 0.5;
-
-    const slope = (px_f - ox_f) / (py_f - oy_f);
-
-    return ox_f + (y - oy_f) * slope;
+    return ox + (y - oy) * slope;
 }
 
-fn line_x_to_y(ox: usize, oy: usize, px: usize, py: usize, x: f64) f64 {
+fn line_x_to_y(ox: f64, oy: f64, px: f64, py: f64, x: f64) f64 {
     // Simply flip coordinates
     return line_y_to_x(oy, ox, py, px, x);
 }

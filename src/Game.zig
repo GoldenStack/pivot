@@ -123,7 +123,10 @@ pub fn fov_naive(self: *const @This(), x: usize, y: usize) [Width * Height]bool 
     for (0..Width) |cx| {
         nextcell: for (0..Height) |cy| {
             if (cx == x and cy == y) continue;
-            var iter = Line.Iterator.init(x, y, cx, cy);
+            var iter = Line.Iterator.init(
+                @as(f64, @floatFromInt(x)) + 0.5, @as(f64, @floatFromInt(y)) + 0.5,
+                @as(f64, @floatFromInt(cx)) + 0.5, @as(f64, @floatFromInt(cy)) + 0.5
+            );
 
             while (iter.next()) |item| {
                 switch (item) {
