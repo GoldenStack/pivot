@@ -22,6 +22,8 @@ pub const Cell = union(CellTag) {
     player,
 };
 
+pub const Point = struct { usize, usize };
+
 board: [Width * Height]Cell,
 player_x: usize,
 player_y: usize,
@@ -131,6 +133,16 @@ fn convert(items: [Width * Height]u2) [Width * Height]bool {
     return out;
 }
 
+pub const CollisionTag = enum { edge, vertex };
+
+pub const Collision = union(CollisionTag) {
+    edge: [2]Point,
+    vertex: struct {
+        all_of: [2]Point,
+        any_of: [2]Point,
+    },
+};
+
 const LineIterator = struct {
     start_x: usize,
     start_y: usize,
@@ -146,9 +158,6 @@ const LineIterator = struct {
     y_index_end: usize,
 
     slope: f64,
-
-    next_cells: [10]struct { usize, usize },
-    next_cell_index: usize,
 
     fn init(start_x: usize, start_y: usize, end_x: usize, end_y: usize) LineIterator {
         var iter: LineIterator = .{
@@ -174,9 +183,6 @@ const LineIterator = struct {
 
                 break :slope (px_f - ox_f) / (py_f - oy_f);
             },
-
-            .next_cells = undefined,
-            .next_cell_index = 0,
         };
 
         // Ignore the lowest value. This is done because we are technically
@@ -194,54 +200,70 @@ const LineIterator = struct {
         return iter;
     }
 
-    fn next(self: *LineIterator) ?struct { usize, usize } {
-        if (self.next_cell_index > 0) {
-            const cell = self.next_cells[self.next_cell_index - 1];
-            self.next_cell_index -= 1;
-            return cell;
-        }
-
-        if (self.x_index <= self.x_index_end) {
+    fn next(self: *LineIterator) ?Collision {
+        if (self.x_index <= self.x_index_end and false) {
             const y_f = line_x_to_y(self.start_x, self.start_y, self.end_x, self.end_y, @as(f64, @floatFromInt(self.x_index)));
+
+            const x = self.x_index;
             const y = @as(usize, @intFromFloat(@floor(y_f)));
 
-            const next_cell = .{ self.x_index, y };
-            if (self.slope == -1 or self.slope == 1) {
-                self.next_cell_index = 3;
-                self.next_cells[0] = .{ next_cell[0] - 1, next_cell[1] };
-                self.next_cells[1] = .{ next_cell[0] - 1, next_cell[1] - 1 };
-                self.next_cells[2] = .{ next_cell[0], next_cell[1] - 1 };
-            } else {
-                self.next_cell_index = 1;
-                self.next_cells[0] = .{ next_cell[0] - 1, next_cell[1] };
-            }
-
             self.x_index += 1;
-            return next_cell;
+
+            if (@round(y_f) == y_f) {
+                return corners(x, y, self.slope);
+            } else {
+                return Collision{ .edge = [_]Point{
+                    .{ x, y },
+                    .{ x - 1, y },
+                } };
+            }
         }
 
         if (self.y_index <= self.y_index_end) {
             const x_f = line_y_to_x(self.start_x, self.start_y, self.end_x, self.end_y, @floatFromInt(self.y_index));
-            const x = @as(usize, @intFromFloat(@floor(x_f)));
 
-            const next_cell = .{ x, self.y_index };
-            if (self.slope == -1 or self.slope == 1) {
-                self.next_cell_index = 3;
-                self.next_cells[0] = .{ next_cell[0] - 1, next_cell[1] };
-                self.next_cells[1] = .{ next_cell[0] - 1, next_cell[1] - 1 };
-                self.next_cells[2] = .{ next_cell[0], next_cell[1] - 1 };
-            } else {
-                self.next_cell_index = 1;
-                self.next_cells[0] = .{ next_cell[0], next_cell[1] - 1 };
-            }
+            const x = @as(usize, @intFromFloat(@floor(x_f)));
+            const y = self.y_index;
 
             self.y_index += 1;
-            return next_cell;
+
+            if (@round(x_f) == x_f) {
+                return corners(x, y, self.slope);
+            } else {
+                return Collision{ .edge = [_]Point{
+                    .{ x, y },
+                    .{ x, y - 1 },
+                } };
+            }
         }
 
         return null;
     }
 };
+
+fn corners(x: usize, y: usize, slope: f64) Collision {
+    const corners_pos = [_]Point{
+        .{ x - 1, y },
+        .{ x, y - 1 },
+    };
+
+    const corners_neg = [_]Point{
+        .{ x - 1, y - 1 },
+        .{ x, y },
+    };
+
+    if (slope > 0) {
+        return Collision{ .vertex = .{
+            .all_of = corners_neg,
+            .any_of = corners_pos,
+        } };
+    } else {
+        return Collision{ .vertex = .{
+            .all_of = corners_pos,
+            .any_of = corners_neg,
+        } };
+    }
+}
 
 fn line_y_to_x(ox: usize, oy: usize, px: usize, py: usize, y: f64) f64 {
     const ox_f = @as(f64, @floatFromInt(ox)) + 0.5;
@@ -270,11 +292,21 @@ pub fn fov_naive(self: *const @This(), x: usize, y: usize) [Width * Height]bool 
 
     var iter = LineIterator.init(x, y, 10, 14);
     while (iter.next()) |item| {
-        if (item[0] == x and item[1] == y) continue;
-        if (item[0] == 10 and item[1] == 14) continue;
-
-        std.debug.print("{any}, {any}\r\n", item);
-        items[item[0] + item[1] * Width] = 2;
+        switch (item) {
+            .edge => |edge| {
+                for (edge) |edge3| {
+                    items[edge3[0] + edge3[1] * Width] = 2;
+                }
+            },
+            .vertex => |vertex| {
+                for (vertex.all_of) |edge3| {
+                    items[edge3[0] + edge3[1] * Width] = 2;
+                }
+                for (vertex.any_of) |edge3| {
+                    items[edge3[0] + edge3[1] * Width] = 2;
+                }
+            },
+        }
     }
 
     if (true) return convert(items);
