@@ -124,56 +124,56 @@ pub fn fov_naive(self: *const @This(), x: usize, y: usize) [Width * Height]bool 
     items[x + y * Width] = 2;
 
     for (0..Width) |cx| {
-        nextcell: for (0..Height) |cy| {
-            if (cx == x and cy == y) continue;
-            var iter = Line.Iterator.init(
-                @as(f64, @floatFromInt(x)) + 0.5, @as(f64, @floatFromInt(y)) + 0.5,
-                @as(f64, @floatFromInt(cx)) + 0.5, @as(f64, @floatFromInt(cy)) + 0.5
-            );
-
-            while (iter.next()) |item| {
-                switch (item) {
-                    .edge => |edge| {
-                        for (edge) |edge3| {
-                            if (edge3[0] == cx and edge3[1] == cy) continue;
-                            if (edge3[0] == x and edge3[1] == y) continue;
-
-                            if (self.get(edge3[0], edge3[1]) != Cell.air) {
-                                items[cx + cy * Width] = 1;
-                                continue :nextcell;
-                            }
-                        }
-                    },
-                    .vertex => |vertex| {
-                        for (vertex.all_of) |edge3| {
-                            if (edge3[0] == cx and edge3[1] == cy) continue;
-                            if (edge3[0] == x and edge3[1] == y) continue;
-
-                            if (self.get(edge3[0], edge3[1]) != Cell.air) {
-                                items[cx + cy * Width] = 1;
-                                continue :nextcell;
-                            }
-                        }
-                        block: {
-                            for (vertex.any_of) |edge3| {
-                                if (edge3[0] == cx and edge3[1] == cy) continue;
-                                if (edge3[0] == x and edge3[1] == y) continue;
-
-                                if (self.get(edge3[0], edge3[1]) == Cell.air) {
-                                    break :block;
-                                }
-                            }
-
-                            items[cx + cy * Width] = 1;
-                            continue :nextcell;
-                        }
-                    },
-                }
+        for (0..Height) |cy| {
+            if (detect_collision_greedy_rasterize(self, x, y, cx, cy)) {
+                items[cx + cy * Width] = 1;
+            } else {
+                items[cx + cy * Width] = 2;
             }
-
-            items[cx + cy * Width] = 2;
         }
     }
 
     return convert(items);
+}
+
+fn detect_collision_greedy_rasterize(self: *const @This(), start_x: usize, start_y: usize, end_x: usize, end_y: usize) bool {
+    if (start_x == end_x and start_y == end_y) return false;
+
+    var iter = Line.Iterator.init(
+        @as(f64, @floatFromInt(start_x)) + 0.5, @as(f64, @floatFromInt(start_y)) + 0.5,
+        @as(f64, @floatFromInt(end_x)) + 0.5, @as(f64, @floatFromInt(end_y)) + 0.5
+    );
+
+    while (iter.next()) |item| {
+        switch (item) {
+            .edge => |points| {
+                for (points) |point| {
+                    if (point[0] == start_x and point[1] == start_y) continue;
+                    if (point[0] == end_x and point[1] == end_y) continue;
+
+                    if (self.get(point[0], point[1]) != Cell.air) return true;
+                }
+            },
+            .vertex => |vertex| {
+                for (vertex.all_of) |point| {
+                    if (point[0] == start_x and point[1] == start_y) continue;
+                    if (point[0] == end_x and point[1] == end_y) continue;
+
+                    if (self.get(point[0], point[1]) != Cell.air) return true;
+                }
+                block: {
+                    for (vertex.any_of) |point| {
+                        if (point[0] == start_x and point[1] == start_y) continue;
+                        if (point[0] == end_x and point[1] == end_y) continue;
+
+                        if (self.get(point[0], point[1]) == Cell.air) break :block;
+                    }
+
+                    return true;
+                }
+            },
+        }
+    }
+
+    return false;
 }
