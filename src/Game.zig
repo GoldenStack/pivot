@@ -79,61 +79,35 @@ pub fn move_player(self: *@This(), x: isize, y: isize) void {
 }
 
 pub fn compose(self: *const @This()) Buffer {
+    const DefaultDisplay = ' ';
+
     var buf = Buffer.init();
 
     const start = std.time.nanoTimestamp();
-    const light = self.fov_naive(self.player_x, self.player_y);
-    const duration = std.time.nanoTimestamp() - start;
-    std.debug.print("{d:.3}ms\r\n", .{(@as(f64, @floatFromInt(duration))) / 1e6});
 
     for (0..Width) |x| {
         for (0..Height) |y| {
-            const value: u8 = if (light[x + y * Width]) switch (self.get(x, y)) {
+            var value: u8 = switch (self.get(x, y)) {
                 .air => ' ',
                 .wall => |value| switch (value) {
                     .side => '|',
                     .top => '-',
                 },
                 .player => 'X',
-            } else ' ';
+            };
+
+            if (value != DefaultDisplay and detect_collision_greedy_rasterize(self, self.player_x, self.player_y, x, y)) {
+                value = DefaultDisplay;
+            }
 
             buf.set(y, x, value);
         }
     }
 
+    const duration = std.time.nanoTimestamp() - start;
+    std.debug.print("{d:.3}ms\r\n", .{(@as(f64, @floatFromInt(duration))) / 1e6});
+    
     return buf;
-}
-
-fn convert(items: [Width * Height]u2) [Width * Height]bool {
-    var out = [_]bool{false} ** (Width * Height);
-    for (0.., items) |index, value| {
-        if (builtin.mode == std.builtin.OptimizeMode.Debug and value == 0) {
-            std.debug.print("Failed to determine FOV status for index {any}\r\n", .{index});
-            @panic("Did not determine in-FOV status for entire screen!");
-        }
-        out[index] = value == 2;
-    }
-    return out;
-}
-
-pub fn fov_naive(self: *const @This(), x: usize, y: usize) [Width * Height]bool {
-    // 0 = unchecked
-    // 1 = not in FOV
-    // 2 = in FOV
-    var items = [_]u2{0} ** (Width * Height);
-    items[x + y * Width] = 2;
-
-    for (0..Width) |cx| {
-        for (0..Height) |cy| {
-            if (detect_collision_greedy_rasterize(self, x, y, cx, cy)) {
-                items[cx + cy * Width] = 1;
-            } else {
-                items[cx + cy * Width] = 2;
-            }
-        }
-    }
-
-    return convert(items);
 }
 
 fn detect_collision_greedy_rasterize(self: *const @This(), start_x: usize, start_y: usize, end_x: usize, end_y: usize) bool {
