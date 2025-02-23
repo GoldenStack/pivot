@@ -50,7 +50,7 @@ pub const Iterator = struct {
             .x_index = x_index_start,
             .y_index = y_index_start,
 
-            .slope = (end_x - start_x) / (end_y - start_y),
+            .slope = (end_y - start_y) / (end_x - start_x),
         };
     }
 
