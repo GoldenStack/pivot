@@ -1,6 +1,8 @@
 
 pub const Point = struct { usize, usize };
 
+pub const EPSILON: f64 = 1e-6;
+
 pub const CollisionTag = enum { edge, vertex };
 
 pub const Collision = union(CollisionTag) {
@@ -60,7 +62,7 @@ pub const Iterator = struct {
 
             self.x_index += 1;
 
-            if (@round(y_f) == y_f) {
+            if (@abs(@round(y_f) - y_f) < EPSILON) {
                 return corners(x, y, self.slope);
             } else {
                 return Collision{ .edge = [_]Point{
@@ -77,7 +79,7 @@ pub const Iterator = struct {
 
             self.y_index += 1;
 
-            if (@round(x_f) == x_f) {
+            if (@abs(@round(x_f) - x_f) < EPSILON) {
                 return corners(x, y, self.slope);
             } else {
                 return Collision{ .edge = [_]Point{
