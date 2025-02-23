@@ -54,9 +54,21 @@ pub const Iterator = struct {
         };
     }
 
+    fn line_y_to_x(self: *const Iterator, y: f64) f64 {
+        const slope_y_to_x = (self.end_x - self.start_x) / (self.end_y - self.start_y);
+
+        return self.start_x + (y - self.start_y) * slope_y_to_x;
+    }
+
+    fn line_x_to_y(self: *const Iterator, x: f64) f64 {
+        const slope_x_to_y = (self.end_y - self.start_y) / (self.end_x - self.start_x);
+
+        return self.start_y + (x - self.start_x) * slope_x_to_y;
+    }
+
     pub fn next(self: *Iterator) ?Collision {
         if (self.x_index <= self.x_index_end) {
-            const y_f = line_x_to_y(self.start_x, self.start_y, self.end_x, self.end_y, @as(f64, @floatFromInt(self.x_index)));
+            const y_f = self.line_x_to_y(@as(f64, @floatFromInt(self.x_index)));
             const x = self.x_index;
             const y = @as(usize, @intFromFloat(@floor(y_f)));
 
@@ -73,7 +85,7 @@ pub const Iterator = struct {
         }
 
         if (self.y_index <= self.y_index_end) {
-            const x_f = line_y_to_x(self.start_x, self.start_y, self.end_x, self.end_y, @floatFromInt(self.y_index));
+            const x_f = self.line_y_to_x(@floatFromInt(self.y_index));
             const x = @as(usize, @intFromFloat(@floor(x_f)));
             const y = self.y_index;
 
@@ -115,15 +127,4 @@ fn corners(x: usize, y: usize, slope: f64) Collision {
             .any_of = corners_neg,
         } };
     }
-}
-
-fn line_y_to_x(ox: f64, oy: f64, px: f64, py: f64, y: f64) f64 {
-    const slope = (px - ox) / (py - oy);
-
-    return ox + (y - oy) * slope;
-}
-
-fn line_x_to_y(ox: f64, oy: f64, px: f64, py: f64, x: f64) f64 {
-    // Simply flip coordinates
-    return line_y_to_x(oy, ox, py, px, x);
 }
