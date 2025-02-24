@@ -12,14 +12,12 @@ pub const CellTag = enum {
     player,
 };
 
-pub const Wall = enum {
-    side,
-    top,
-};
-
 pub const Cell = union(CellTag) {
     air,
-    wall: Wall,
+    wall: enum {
+        side,
+        top,
+    },
     player,
 };
 
@@ -43,13 +41,13 @@ pub fn init() @This() {
 
 fn room(self: *@This(), x: usize, y: usize, width: usize, height: usize) void {
     for (y..y+height+1) |ry| {
-        self.set(x, ry, Cell{ .wall = Wall.side });
-        self.set(x + width, ry, Cell{ .wall = Wall.side });
+        self.set(x, ry, Cell{ .wall = .side });
+        self.set(x + width, ry, Cell{ .wall = .side });
     }
 
     for (x..x+width+1) |rx| {
-        self.set(rx, y, Cell{ .wall = Wall.top });
-        self.set(rx, y + height, Cell{ .wall = Wall.top });
+        self.set(rx, y, Cell{ .wall = .top });
+        self.set(rx, y + height, Cell{ .wall = .top });
     }
 }
 
