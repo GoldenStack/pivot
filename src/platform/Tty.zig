@@ -4,7 +4,7 @@
 
 const std = @import("std");
 const posix = std.posix;
-const Buffer = @import("../Buffer.zig");
+const Boundary = @import("../Boundary.zig");
 
 const Break = "\r\n";
 
@@ -43,9 +43,9 @@ pub fn init() !@This() {
     attr.cflag.PARENB = false;
     attr.cflag.CSIZE = .CS8;
 
-    // Always block to read, with no timeout
+    // Polling read that instantly returns
     attr.cc[@intFromEnum(posix.V.TIME)] = 0;
-    attr.cc[@intFromEnum(posix.V.MIN)] = 1;
+    attr.cc[@intFromEnum(posix.V.MIN)] = 0;
 
     // Write the new attributes
     try posix.tcsetattr(fd, .FLUSH, attr);
@@ -60,7 +60,7 @@ pub fn init() !@This() {
     };
 
     // Initial screen clear
-    try tty.render(&Buffer.fill(' '));
+    try tty.render(&Boundary.Buffer.fill(' '));
 
     return tty;
 }
@@ -76,41 +76,55 @@ pub fn deinit(self: @This()) void {
 }
 
 /// Renders the screen buffer for this platform.
-pub fn render(_: *const @This(), buf: *const Buffer) !void {
+pub fn render(_: *const @This(), buf: *const Boundary.Buffer) !void {
     const stdout = std.io.getStdOut();
 
     // Clear the screen
     try stdout.writeAll(Csi ++ "2J" ++ Break);
 
     // Write each row, separated with newlines
-    for (0..Buffer.Height) |row| {
-        const start = row * Buffer.Width;
-        try stdout.writeAll(buf.buf[start..start + Buffer.Width]);
+    for (0..Boundary.Height) |row| {
+        const start = row * Boundary.Width;
+        try stdout.writeAll(buf.buf[start..start + Boundary.Width]);
         
-        if (row < Buffer.Height - 1) {
+        if (row < Boundary.Height - 1) {
             try stdout.writeAll(Break);
         }
     }
 }
 
-pub fn blocking_input(_: @This()) !Key {
+pub fn poll_input(_: @This()) !?Boundary.Key {
     const stdin = std.io.getStdIn().reader();
-    var buf: [16]u8 = undefined;
 
-    // We assume only one keypress is read
+    // TODO: Ring buffer
+    var buf: [64]u8 = undefined;
     const len = try stdin.read(&buf);
 
-    return .{
-        .buf = buf,
-        .len = len,
+    if (len != 0)
+    std.debug.print("{any} {any}\r\n", .{len, buf});
+
+    // TODO: Does not handle the possibility of multiple keys in one frame
+    const slice = buf[0..len];
+
+    if (slice.len == 1) switch (slice[0]) {
+        'w', 'k', => return Boundary.Key.up,
+        'a', 'h' => return Boundary.Key.left,
+        's', 'j' => return Boundary.Key.down,
+        'd', 'l' => return Boundary.Key.right,
+        'q' => return Boundary.Key.quit,
+        else => {},
     };
+
+    const cc1 = slice.len == 3 and std.mem.eql(u8, slice[0..2], &[_]u8{27, 91});
+
+    if (cc1) switch (slice[slice.len-1]) {
+        65 => return Boundary.Key.up,
+        68 => return Boundary.Key.left,
+        66 => return Boundary.Key.down,
+        67 => return Boundary.Key.right,
+        else => {},
+    };
+
+    return null;
+
 }
-
-pub const Key = struct {
-    buf: [16]u8,
-    len: usize,
-
-    pub fn slice(self: *const Key) []const u8 {
-        return self.buf[0..self.len];
-    }
-};

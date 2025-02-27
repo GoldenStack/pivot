@@ -1,10 +1,10 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const Buffer = @import("Buffer.zig");
+const Boundary = @import("Boundary.zig");
 const Line = @import("Line.zig");
 
-pub const Width = Buffer.Width;
-pub const Height = Buffer.Height;
+pub const Width = Boundary.Width;
+pub const Height = Boundary.Height;
 
 pub const CellTag = enum {
     air,
@@ -21,12 +21,15 @@ pub const Cell = union(CellTag) {
     player,
 };
 
+running: bool,
+
 board: [Width * Height]Cell,
 player_x: usize,
 player_y: usize,
 
 pub fn init() @This() {
     var board: @This() = .{
+        .running = true,
         .board = [_]Cell{Cell.air} ** (Width * Height),
         .player_x = 14,
         .player_y = 18,
@@ -63,7 +66,17 @@ fn add_range(value: usize, add: isize, max: usize) usize {
     if (add < 0) return value -| @as(usize, @intCast(-add)) else return @min(max, value +| @as(usize, @intCast(add)));
 }
 
-pub fn move_player(self: *@This(), x: isize, y: isize) void {
+pub fn input(self: *@This(), key: Boundary.Key) void {
+    switch (key) {
+        .up => self.move_player(0, -1),
+        .down => self.move_player(0, 1),
+        .left => self.move_player(-1, 0),
+        .right => self.move_player(1, 0),
+        .quit => self.running = false,
+    }
+}
+
+fn move_player(self: *@This(), x: isize, y: isize) void {
     const new_x = add_range(self.player_x, x, Width - 1);
     const new_y = add_range(self.player_y, y, Height - 1);
 
@@ -76,10 +89,10 @@ pub fn move_player(self: *@This(), x: isize, y: isize) void {
     self.player_y = new_y;
 }
 
-pub fn compose(self: *const @This()) Buffer {
+pub fn output(self: *const @This()) Boundary.Buffer {
     const DefaultDisplay = ' ';
 
-    var buf = Buffer.init();
+    var buf = Boundary.Buffer.init();
 
     const start = std.time.nanoTimestamp();
 
