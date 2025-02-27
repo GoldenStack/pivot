@@ -12,12 +12,11 @@ pub fn main() !void {
 
     var game = Game.init();
 
-    try term.render(&game.output());
     while (game.running) {
+        try term.render(&game.output());
+
         posix.nanosleep(0, @divTrunc(1e9, 60));
         
         while (try term.poll_input()) |key| game.input(key);
-
-        try term.render(&game.output());
     }
 }
